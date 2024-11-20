@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Luz Audiorítmica</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: rgb(0, 0, 0); /* Color inicial negro */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.1s ease;
+            position: relative;
+        }
+        h1 {
+            color: white;
+            font-size: 1rem; /* Ajuste del tamaño del texto */
+            margin: 0;
+            position: absolute;
+            z-index: 2; /* Encima del efecto de iluminación */
+            text-align: center;
+            transition: color 0.1s ease; /* Suaviza la transición del color del texto */
+        }
+        /* Capa de iluminación */
+        .illumination {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.5), rgba(0, 0, 0, 0));
+            pointer-events: none; /* Para que sea transparente a los clics */
+            transition: background 0.1s ease; /* Suaviza la transición del efecto */
+            z-index: 1;
+        }
+    </style>
+</head>
+<body>
+    <h1 id="title">Sergio - 27/12/24</h1>
+    <div class="illumination" id="illumination"></div> <!-- Capa de iluminación -->
+
+    <script>
+        let wakeLock = null;
+
+        // Función para solicitar el Wake Lock
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    console.log("Wake Lock activado");
+                }
+            } catch (err) {
+                console.error("Error al solicitar Wake Lock:", err);
+            }
+        }
+
+        async function initAudioVisualizer() {
+            try {
+                // Solicita permiso para usar el micrófono
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const analyser = audioContext.createAnalyser();
+
+                analyser.fftSize = 256; // Tamaño de FFT
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                const source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser);
+
+                // Función para actualizar el color de fondo en función del volumen
+                function updateBackgroundColor() {
+                    analyser.getByteFrequencyData(dataArray);
+
+                    // Calcula el volumen promedio de todas las frecuencias
+                    const averageVolume = dataArray.reduce((a, b) => a + b) / dataArray.length;
+                    const normalizedVolume = averageVolume / 155; // Normaliza a un rango de 0 a 1
+
+                    // Mapeo del volumen a colores (0 a 255)
+                    let red = Math.min(255, Math.floor(255 * normalizedVolume * 2)); // Color rojo
+                    let green = Math.min(255, Math.floor(255 * (1 - normalizedVolume * 2))); // Color verde
+                    let blue = 255; // Color azul fijo
+
+                    // Si la intensidad es alta, hace que la pantalla sea blanca
+                    if (normalizedVolume >= 1) {
+                        red = 255;
+                        green = 255;
+                    }
+
+                    // Aplica el color de fondo basado en los valores calculados
+                    document.body.style.backgroundColor = `rgb(${red}, ${green}, ${blue})`;
+
+                    // Aplica un color inverso al efecto de iluminación central
+                    const invRed = 255 - red;
+                    const invGreen = 255 - green;
+                    const invBlue = 255 - blue;
+                    document.getElementById("illumination").style.background = 
+                        `radial-gradient(circle, rgba(${invRed}, ${invGreen}, ${invBlue}, 0.5), rgba(0, 0, 0, 0))`;
+
+                    // Cambia el color del texto basado en los valores calculados
+                    document.getElementById("title").style.color = `rgb(${invRed}, ${invGreen}, ${invBlue})`;
+
+                    requestAnimationFrame(updateBackgroundColor); // Actualiza en bucle
+                }
+
+                updateBackgroundColor(); // Inicia el proceso de visualización
+            } catch (err) {
+                console.error("Error al acceder al micrófono:", err);
+            }
+        }
+
+        // Inicia el visualizador de audio cuando se carga la página
+        initAudioVisualizer();
+        
+        // Activa el Wake Lock cuando se carga la página
+        requestWakeLock();
+    </script>
+</body>
+</html>
